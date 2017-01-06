@@ -3,10 +3,8 @@ import re
 import json
 import boto3
 import requests
-from base64 import b64decode
- 
-ENCRYPTED_GA_SECRET = os.environ['ga_secret']
-DECRYPTED_GA_SECRET = boto3.client('kms').decrypt(CiphertextBlob=b64decode(ENCRYPTED_GA_SECRET))['Plaintext']
+
+GA_SECRET = os.environ['ga_secret']
 
 def send_email(html_email, plaintext_email, reply_to):
     try:
@@ -62,11 +60,10 @@ def validate_inputs(post_json):
 
 def validate_captcha(captcha_response):
     url = 'https://www.google.com/recaptcha/api/siteverify'
-    ga_secret = DECRYPTED_GA_SECRET
     response = json.loads(requests.post(
         url, 
         data={
-            'secret': ga_secret, 
+            'secret': GA_SECRET, 
             'response':captcha_response
         }
     ).text)
@@ -75,13 +72,17 @@ def validate_captcha(captcha_response):
 def lambda_handler(event, context):
     status = 'success'
     print event
-    post_json = json.loads(event['body'])
+    post_json = json.loads(event['body']) # event
     print 'post_json:'
     print post_json
     message = post_json['message']
     name = post_json['name']
     email = post_json['email']
-    captcha_response = post_json['captcha']
+    print 'post_json[\'captcha\']:'
+    print post_json['captcha']
+    captcha_response = str(post_json['captcha'])
+    print 'captcha_response:'
+    print captcha_response
     v = validate_inputs(post_json)
     if v[1] == 0:
         status = v[0]
@@ -92,13 +93,7 @@ def lambda_handler(event, context):
     if status == 'success':
         print 'sending email'
         send_email(message, message, email)
-    res_body = """
-    {{
-        "name":"{0}",
-        "email":"{1}",
-        "message":"{2}",
-        "status":"{3}"
-    }}""".format(name, email, message, status)
+    res_body = """{{"name":"{0}","email":"{1}","message":"{2}","status":"{3}"}}""".format(name, email, message, status)
     print 'res_body'
     print res_body
     return {
